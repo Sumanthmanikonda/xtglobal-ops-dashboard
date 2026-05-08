@@ -1,0 +1,28 @@
+<svg width="600" height="300" viewBox="0 0 600 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="chevronGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1FA2FF" />
+      <stop offset="50%" stop-color="#12D8FA" />
+      <stop offset="100%" stop-color="#0B63F6" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Logo Row -->
+  <g transform="translate(40, 60)">
+    <!-- XTGLOBAL Text -->
+    <text x="0" y="40" font-family="Montserrat, sans-serif" font-weight="900" font-size="48" fill="white" style="letter-spacing: -3px;">XT</text>
+    <text x="65" y="40" font-family="Montserrat, sans-serif" font-weight="700" font-size="48" fill="white" style="letter-spacing: -1px;">GLOBAL</text>
+    
+    <!-- Chevron Icon -->
+    <g transform="translate(260, -10)">
+      <path d="M15 7.5 L42.5 25 L15 42.5 L25 25 Z" fill="url(#chevronGrad)" />
+      <path d="M15 7.5 L25 25 L15 42.5 L10 25 Z" fill="#0c4a6e" />
+    </g>
+  </g>
+  
+  <!-- Divider Line (40px below logo) -->
+  <rect x="40" y="140" width="520" height="2" fill="#334155" opacity="0.6" />
+  
+  <!-- OPS FLOW Text (30px below divider, aligned with GLOBAL) -->
+  <text x="105" y="200" font-family="Montserrat, sans-serif" font-weight="600" font-size="32" fill="url(#chevronGrad)" style="letter-spacing: 6px; text-transform: uppercase;">OPS FLOW</text>
+</svg>
