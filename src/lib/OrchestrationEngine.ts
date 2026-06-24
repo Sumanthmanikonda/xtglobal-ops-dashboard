@@ -14,7 +14,19 @@ export type EventType =
   | 'RULE_EVALUATION_TRIGGER'
   | 'DOCUMENT_UPLOADED'
   | 'DEPENDENCY_RESOLVED'
-  | 'WORKER_JOB_COMPLETED';
+  | 'WORKER_JOB_COMPLETED'
+  | 'WORK_ITEM_CREATED'
+  | 'WORK_ITEM_UPDATED'
+  | 'WORK_ITEM_DELETED'
+  | 'COMMUNICATION_ADDED'
+  | 'COMMITMENT_EVALUATED'
+  | 'ASSIGNMENT_LOGGED'
+  | 'SERVICE_CREATED'
+  | 'SERVICE_UPDATED'
+  | 'SERVICE_DELETED'
+  | 'TEMPLATE_CREATED'
+  | 'TEMPLATE_UPDATED'
+  | 'TEMPLATE_DELETED';
 
 export interface OrchestrationEvent {
   id: string;
@@ -33,6 +45,12 @@ export interface StateSnapshot {
   notifications: any[];
   auditLogs: any[];
   decisionLogs: any[];
+  templates: any[];
+  services: any[];
+  workItems: any[];
+  clientServices: any[];
+  assignmentHistory: any[];
+  commitments: any[];
 }
 
 // 1. EVENT STORE (Append-Only Event Sourcing)
@@ -51,7 +69,7 @@ class EventStore {
   public replay(tenantId: string): StateSnapshot {
     // Reconstruct state purely from event lineage
     console.log(`[EVENT STORE] Replaying ${this.events.length} events for tenant ${tenantId}`);
-    return { activities: [], tasks: [], workflows: [], notifications: [], auditLogs: [], decisionLogs: [] };
+    return { activities: [], tasks: [], workflows: [], notifications: [], auditLogs: [], decisionLogs: [], templates: [], services: [], workItems: [], clientServices: [], assignmentHistory: [], commitments: [] };
   }
 }
 
@@ -155,6 +173,31 @@ class RulesEngine {
         payload: { ruleId: 'Policy_Escalation', activityId: payload.activity.id }
       });
     }
+    if (eventType === 'WORK_ITEM_CREATED') {
+      const item = payload.workItem;
+      console.log(`[RULES ENGINE] Executing Dynamic Policy: Assign Commitment for WorkItem ${item.title}`);
+      consequentActions.push({
+        type: 'COMMITMENT_EVALUATED',
+        payload: {
+           workItemId: item.id,
+           clientId: item.clientId,
+           processId: item.processId,
+           type: 'Transaction Commitment',
+           status: 'Active',
+           slaTarget: item.slaTarget
+        }
+      });
+    }
+
+    if (eventType === 'COMMUNICATION_ADDED' && payload.communication.tag === 'Clarification Required') {
+      console.log(`[RULES ENGINE] Executing Dynamic Policy: Client Clarification Request`);
+      consequentActions.push({
+        type: 'TASK_STATUS_CHANGED',
+        payload: { taskId: payload.communication.objectId, newStatus: 'Blocked', autoResolved: false }
+      });
+      // Optionally we could add a Commitment pause action here, but we'll stick to Task update for now
+    }
+    
     return consequentActions; // Secondary events triggered by rules
   }
 }
@@ -172,7 +215,7 @@ export class EnterpriseOrchestrator {
   
   // Current volatile state (in memory cache for React) representing the distributed DB
   private stateCache: StateSnapshot = {
-    activities: [], tasks: [], workflows: [], notifications: [], auditLogs: [], decisionLogs: []
+    activities: [], tasks: [], workflows: [], notifications: [], auditLogs: [], decisionLogs: [], templates: [], services: [], workItems: [], clientServices: [], assignmentHistory: [], commitments: []
   };
 
   private constructor() {}
@@ -344,6 +387,93 @@ export class EnterpriseOrchestrator {
       case 'COMMUNICATION_REPLY_SENT': {
         // Logic handled through Rules Engine primarily, but logging here
         commitLedger('COMMUNICATION_EVENT', event.payload.activityId, 'Activity', null, null, 'Reply processed by Orchestrator');
+        break;
+      }
+
+      case 'ASSIGNMENT_LOGGED': {
+        const history = event.payload.history;
+        this.stateCache.assignmentHistory.unshift(history);
+        commitLedger('ASSIGNMENT_LOGGED', history.workItemId, 'WorkItem', history.oldOwner, history.newOwner, history.comments);
+        break;
+      }
+      case 'WORK_ITEM_CREATED': {
+        const item = event.payload.workItem;
+        this.stateCache.workItems.unshift(item);
+        commitLedger('WORK_ITEM_CREATED', item.id, 'WorkItem', null, item.status, 'New orchestrated work item created');
+        break;
+      }
+      case 'WORK_ITEM_UPDATED': {
+        const item = event.payload.workItem;
+        const index = this.stateCache.workItems.findIndex(w => w.id === item.id);
+        if (index !== -1) {
+          this.stateCache.workItems[index] = item;
+          commitLedger('WORK_ITEM_UPDATED', item.id, 'WorkItem', null, item.status, 'Work item updated');
+        }
+        break;
+      }
+      case 'COMMITMENT_EVALUATED': {
+        const commitment = {
+          id: `cmt-${Date.now()}`,
+          ...event.payload,
+          createdAt: timestamp
+        };
+        this.stateCache.commitments.unshift(commitment);
+        commitLedger('COMMITMENT_ASSIGNED', commitment.id, 'Commitment', null, commitment.status, 'Commitment automatically linked via Rules Engine');
+        break;
+      }
+      case 'COMMUNICATION_ADDED': {
+        // Also handle tag = Clarification Required here. We'll spawn secondary actions in rules instead.
+        commitLedger('COMMUNICATION_EVENT', event.payload.activityId, 'Activity', null, null, 'Communication logged by Orchestrator');
+        break;
+      }
+      case 'WORK_ITEM_DELETED': {
+        const id = event.payload.id;
+        this.stateCache.workItems = this.stateCache.workItems.filter(w => w.id !== id);
+        commitLedger('WORK_ITEM_DELETED', id, 'WorkItem', null, null, 'Work item deleted');
+        break;
+      }
+
+      case 'SERVICE_CREATED': {
+        const item = event.payload.service;
+        this.stateCache.services.unshift(item);
+        commitLedger('SERVICE_CREATED', item.id, 'Service', null, item.status, 'New service defined in catalog');
+        break;
+      }
+      case 'SERVICE_UPDATED': {
+        const item = event.payload.service;
+        const index = this.stateCache.services.findIndex(s => s.id === item.id);
+        if (index !== -1) {
+          this.stateCache.services[index] = item;
+          commitLedger('SERVICE_UPDATED', item.id, 'Service', null, item.status, 'Service updated');
+        }
+        break;
+      }
+      case 'SERVICE_DELETED': {
+        const id = event.payload.id;
+        this.stateCache.services = this.stateCache.services.filter(w => w.id !== id);
+        commitLedger('SERVICE_DELETED', id, 'Service', null, null, 'Service deleted');
+        break;
+      }
+
+      case 'TEMPLATE_CREATED': {
+        const item = event.payload.template;
+        this.stateCache.templates.unshift(item);
+        commitLedger('TEMPLATE_CREATED', item.id, 'Template', null, item.status, 'New template created');
+        break;
+      }
+      case 'TEMPLATE_UPDATED': {
+        const item = event.payload.template;
+        const index = this.stateCache.templates.findIndex(s => s.id === item.id);
+        if (index !== -1) {
+          this.stateCache.templates[index] = item;
+          commitLedger('TEMPLATE_UPDATED', item.id, 'Template', null, item.status, 'Template updated');
+        }
+        break;
+      }
+      case 'TEMPLATE_DELETED': {
+        const id = event.payload.id;
+        this.stateCache.templates = this.stateCache.templates.filter(w => w.id !== id);
+        commitLedger('TEMPLATE_DELETED', id, 'Template', null, null, 'Template deleted');
         break;
       }
 

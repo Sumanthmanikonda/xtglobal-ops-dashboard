@@ -139,7 +139,7 @@ export interface ScopeCommitment {
 
 export interface Communication {
   id: string;
-  objectType: 'Activity' | 'Scope' | 'Rule' | 'General';
+  objectType: 'Activity' | 'Scope' | 'Rule' | 'General' | 'WorkItem' | 'Escalation' | 'Client' | 'Service';
   objectId?: string;
   subject?: string;
   referenceNumber?: string;
@@ -147,7 +147,7 @@ export interface Communication {
   message: string;
   timestamp: string;
   priority: 'Low' | 'Medium' | 'High';
-  tag?: 'General' | 'Critical' | 'Clarification' | 'Escalation' | 'Clarification Required' | 'Email';
+  tag?: 'General' | 'Critical' | 'Clarification' | 'Escalation' | 'Clarification Required' | 'Email' | 'General Communication' | 'Decision' | 'Approval Request' | 'Exception' | 'Follow Up' | 'Rule Update' | 'Knowledge Note';
 }
 
 export interface Rule {
@@ -157,7 +157,8 @@ export interface Rule {
   description: string;
   version: string;
   effectiveDate: string;
-  status: 'Draft' | 'Awaiting Confirmation' | 'Approved' | 'Rejected';
+  status: 'Instruction Raised' | 'Client Review' | 'Client Approval' | 'Rule Published' | 'Draft' | 'Awaiting Confirmation' | 'Approved' | 'Rejected';
+  linkedObjects?: { id: string, type: 'WorkItem' | 'Service' | 'Engagement' | 'Template' | 'Communication', name: string }[];
 }
 
 export interface Workflow {

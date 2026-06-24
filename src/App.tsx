@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Orchestrator } from './lib/OrchestrationEngine';
 import { 
   LayoutDashboard, 
+  Globe,
+  Briefcase,
   FileText, 
   Calendar, 
   MessageSquare, 
@@ -38,7 +40,13 @@ import {
   Mail,
   FileSpreadsheet,
   FileDown,
-  Edit
+  Edit,
+  Copy,
+  Play,
+  FileBarChart,
+  Target,
+  Cpu,
+  ListChecks
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -84,6 +92,25 @@ import {
   Task,
   Attendance
 } from './data/mockData';
+import { WorkItem } from './types/models';
+import { ENGAGEMENTS, SCOPE_ITEMS, WORK_ITEMS, SERVICES, CLIENT_SERVICES, TEMPLATES, ASSIGNMENT_HISTORY, SCENARIO_COMMUNICATIONS } from './data/enterpriseData';
+import { WorkItemList, WorkItemDetail } from './modules/WorkItemEngine';
+import { ServiceCatalogEngine } from './modules/ServiceCatalog';
+import { TemplateEngine } from './modules/TemplateEngine';
+import { AssignmentEngine } from './modules/AssignmentEngine';
+import { CalendarModule } from './modules/CalendarModule';
+import { MyWorkspacePage } from './modules/MyWorkspace';
+import { SmartCaptureModal } from './modules/SmartCaptureModal';
+import { BulkProcessingModal } from './modules/BulkProcessingModal';
+import { ExceptionCenterPage } from './modules/ExceptionCenter';
+import { DeliveryControlTowerPage } from './modules/DeliveryControlTower';
+import { ClientOnboardingWizard } from './modules/ClientOnboardingWizard';
+import { ClientActionCenterPage } from './modules/ClientActionCenter';
+import { ServiceBlueprintLibraryPage } from './modules/ServiceBlueprintLibrary';
+import { EndToEndTestingPage } from './modules/EndToEndTestingMode';
+import { OperationalReviewPacksPage } from './modules/OperationalReviewPacks';
+import { CommitmentsProgressPage } from './modules/CommitmentsProgress';
+import { AdminSettingsPage } from './modules/AdminSettingsModules';
 
 // --- Types ---
 type Page = 
@@ -106,10 +133,26 @@ type Page =
   | 'user-detail'
   | 'workflow-builder'
   | 'escalation'
+  | 'escalations'
+  | 'exceptions'
+  | 'control-tower'
+  | 'client-action-center'
   | 'tasks'
   | 'task-detail'
   | 'audit-viewer'
-  | 'orchestration';
+  | 'orchestration'
+  | 'work-items'
+  | 'service-catalog'
+  | 'blueprints'
+  | 'templates'
+  | 'assignments'
+  | 'calendar'
+  | 'my-workspace'
+  | 'test-environment'
+  | 'operational-reviews'
+  | 'automation-engine'
+  | 'commitments'
+  | 'admin-settings';
 
 // --- New Models ---
 
@@ -213,20 +256,48 @@ const Sidebar = ({ activePage, setActivePage, currentUser, isPresentationMode, o
   const isManager = currentUser.role === 'Internal Manager' || isAdmin;
   const isClient = currentUser.userType === 'Client';
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, show: true },
-    { id: 'activity-log', label: 'Activity Log', icon: FileText, show: true },
-    { id: 'sla-center', label: 'SLA Center', icon: ActivityIcon, show: isManager },
-    { id: 'tasks', label: 'Tasks', icon: ClipboardList, show: true },
-    { id: 'scope-sla', label: 'Scope & SLA', icon: Calendar, show: true },
-    { id: 'communications', label: 'Communications', icon: MessageSquare, show: true },
-    { id: 'rule-library', label: 'Rule Library', icon: BookOpen, show: true },
-    { id: 'clients', label: 'Clients', icon: Users, show: !isClient },
-    { id: 'ops-control', label: 'Ops Control', icon: Shield, show: isAdmin },
-    { id: 'audit-viewer', label: 'Audit Logs', icon: Eye, show: isManager },
-    { id: 'user-monitor', label: 'User Monitor', icon: UserCheck, show: isManager },
-    { id: 'workflow-builder', label: 'Workflows', icon: GitBranch, show: isManager },
-    { id: 'orchestration', label: 'Enterprise Orchestration', icon: ActivityIcon, show: isManager },
+  const menuGroups = [
+    {
+      title: 'OPERATIONS',
+      show: !isClient,
+      items: [
+        { id: 'dashboard', label: 'My Workspace', icon: LayoutDashboard, show: true },
+        { id: 'work-items', label: 'Work Management', icon: Clock, show: true },
+        { id: 'tasks', label: 'Tasks', icon: ClipboardList, show: true },
+        { id: 'communications', label: 'Collaboration Hub', icon: MessageSquare, show: true },
+        { id: 'calendar', label: 'Calendar View', icon: Calendar, show: true },
+      ]
+    },
+    {
+      title: 'MANAGEMENT',
+      show: isManager,
+      items: [
+        { id: 'control-tower', label: 'Delivery Control Tower', icon: Globe, show: isManager },
+        { id: 'commitments', label: 'Commitments & Progress', icon: ListChecks, show: isManager },
+        { id: 'operational-reviews', label: 'Operational Reviews', icon: FileBarChart, show: isManager },
+      ]
+    },
+    {
+      title: 'CLIENT',
+      show: true,
+      items: [
+        { id: isClient ? 'client-action-center' : 'clients', label: isClient ? 'My Dashboard' : 'Clients', icon: Target, show: true }
+      ]
+    },
+    {
+      title: 'GOVERNANCE',
+      show: !isClient,
+      items: [
+        { id: 'rule-library', label: 'Knowledge Hub', icon: BookOpen, show: true },
+      ]
+    },
+    {
+      title: 'ADMINISTRATION',
+      show: isAdmin,
+      items: [
+        { id: 'ops-control', label: 'Admin Console', icon: Shield, show: isAdmin },
+      ]
+    }
   ];
 
   return (
@@ -241,32 +312,11 @@ const Sidebar = ({ activePage, setActivePage, currentUser, isPresentationMode, o
       </div>
       
       <div className="flex-1 px-4 space-y-6 mt-4 overflow-y-auto custom-scrollbar pb-8">
-        <div>
-          <p className="px-3 text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Core Modules</p>
-          <nav className="space-y-1">
-            {menuItems.filter(i => i.show && !['sla-center', 'ops-control', 'user-monitor', 'workflow-builder'].includes(i.id)).map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActivePage(item.id as Page)}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                  activePage === item.id 
-                    ? "bg-zinc-800 text-white" 
-                    : "hover:bg-zinc-900 hover:text-zinc-200"
-                )}
-              >
-                <item.icon size={18} />
-                {item.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {isManager && (
-          <div>
-            <p className="px-3 text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Governance & Control</p>
+        {menuGroups.filter(g => g.show).map((group) => (
+          <div key={group.title}>
+            <p className="px-3 text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">{group.title}</p>
             <nav className="space-y-1">
-              {menuItems.filter(i => i.show && ['sla-center', 'ops-control', 'user-monitor', 'workflow-builder'].includes(i.id)).map((item) => (
+              {group.items.filter(i => i.show).map((item) => (
                 <button
                   key={item.id}
                   onClick={() => setActivePage(item.id as Page)}
@@ -283,7 +333,7 @@ const Sidebar = ({ activePage, setActivePage, currentUser, isPresentationMode, o
               ))}
             </nav>
           </div>
-        )}
+        ))}
       </div>
 
       <div className="px-4 py-6 space-y-1 border-t border-zinc-800">
@@ -805,7 +855,7 @@ const Badge = ({ children, variant = 'default', className }: { children: React.R
   );
 };
 
-const GlobalSearch = ({ isOpen, onClose, onSelect }: { isOpen: boolean, onClose: () => void, onSelect: (type: string, id: string) => void }) => {
+const GlobalSearch = ({ isOpen, onClose, onSelect, workItems, services, templates }: { isOpen: boolean, onClose: () => void, onSelect: (type: string, id: string) => void, workItems: any[], services: any[], templates: any[] }) => {
   const [query, setQuery] = useState('');
   
   const results = useMemo(() => {
@@ -815,9 +865,12 @@ const GlobalSearch = ({ isOpen, onClose, onSelect }: { isOpen: boolean, onClose:
     const clientResults = CLIENTS.filter(c => c.name.toLowerCase().includes(q)).map(c => ({ type: 'Client', id: c.id, label: c.name, sub: c.industry }));
     const activityResults = ACTIVITIES.filter(a => a.documentReference.toLowerCase().includes(q) || a.actionTaken.toLowerCase().includes(q)).slice(0, 5).map(a => ({ type: 'Activity', id: a.id, label: a.documentReference, sub: a.actionTaken }));
     const ruleResults = RULES.filter(r => r.description.toLowerCase().includes(q)).map(r => ({ type: 'Rule', id: r.id, label: r.process, sub: r.description }));
+    const workItemResults = workItems.filter(w => w.title.toLowerCase().includes(q) || w.id.toLowerCase().includes(q)).slice(0, 5).map(w => ({ type: 'WorkItem', id: w.id, label: w.title, sub: w.status }));
+    const serviceResults = services.filter(s => s.serviceName.toLowerCase().includes(q)).slice(0, 5).map(s => ({ type: 'Service', id: s.id, label: s.serviceName, sub: s.businessUnit }));
+    const templateResults = templates.filter(t => t.templateName.toLowerCase().includes(q)).slice(0, 5).map(t => ({ type: 'Template', id: t.id, label: t.templateName, sub: t.frequency }));
     
-    return [...clientResults, ...activityResults, ...ruleResults];
-  }, [query]);
+    return [...clientResults, ...activityResults, ...ruleResults, ...workItemResults, ...serviceResults, ...templateResults];
+  }, [query, workItems, services, templates]);
 
   return (
     <AnimatePresence>
@@ -1057,7 +1110,7 @@ const OrchestrationTelemetryPage = ({ activities, tasks, auditLogs, workflows }:
   );
 };
 
-const DashboardPage = ({ onActivityClick, currentUser, tasks, onNavigate, activities, communications, onStatusChange, users, isPresentationMode, selectedClientContext, assignedClients }: { 
+const DashboardPage = ({ onActivityClick, currentUser, tasks, onNavigate, activities, communications, onStatusChange, users, isPresentationMode, selectedClientContext, assignedClients, workItems }: { 
   onActivityClick: (a: Activity) => void, 
   currentUser: User, 
   tasks: Task[], 
@@ -1068,10 +1121,18 @@ const DashboardPage = ({ onActivityClick, currentUser, tasks, onNavigate, activi
   users: User[],
   isPresentationMode?: boolean,
   selectedClientContext?: Client | null,
-  assignedClients: Client[]
+  assignedClients: Client[],
+  workItems: WorkItem[]
 }) => {
   const isClient = currentUser.userType === 'Client';
   
+  const relevantWorkItems = workItems.filter(w => {
+    if (selectedClientContext) return w.clientId === selectedClientContext.id;
+    if (isClient && currentUser.clientId) return w.clientId === currentUser.clientId;
+    if (currentUser.userType === 'Admin') return true;
+    return assignedClients.some(c => c.id === w.clientId);
+  });
+
   const relevantActivities = activities.filter(a => {
     if (selectedClientContext) return a.clientId === selectedClientContext.id;
     if (isClient && currentUser.clientId) return a.clientId === currentUser.clientId;
@@ -1080,20 +1141,16 @@ const DashboardPage = ({ onActivityClick, currentUser, tasks, onNavigate, activi
   });
 
   const stats = isClient ? [
-    { label: 'Activities Processed', value: relevantActivities.length.toLocaleString(), icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50', page: 'activity-log' as Page },
-    { label: 'Pending Your Action', value: communications.filter(c => {
-      if (c.objectType !== 'Activity' || !c.objectId) return false;
-      const act = relevantActivities.find(a => a.id === c.objectId);
-      return act && act.status === 'Pending';
-    }).length.toString(), icon: MessageSquare, color: 'text-amber-600', bg: 'bg-amber-50', page: 'communications' as Page, filter: { status: 'Pending' } },
+    { label: 'Completed Work', value: relevantWorkItems.filter(w => w.status === 'Completed').length.toLocaleString(), icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50', page: 'work-items' as Page },
+    { label: 'Pending Client Action', value: relevantWorkItems.filter(w => w.status === 'Awaiting Client').length.toString(), icon: MessageSquare, color: 'text-amber-600', bg: 'bg-amber-50', page: 'work-items' as Page, filter: { status: 'Awaiting Client' } },
     { label: 'SLA Compliance', value: '99.2%', icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', page: 'sla-center' as Page },
-    { label: 'Active Escalations', value: relevantActivities.filter(a => a.tag === 'Escalation').length.toString(), icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50', page: 'activity-log' as Page, filter: { tag: 'Escalation' } },
+    { label: 'Active Escalations', value: relevantWorkItems.filter(w => w.status === 'Escalated Level 1' || w.status === 'Escalated Level 2').length.toString(), icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50', page: 'work-items' as Page, filter: { tag: 'Escalation' } },
   ] : [
-    { label: 'Activities Today', value: relevantActivities.filter(a => a.timestamp.startsWith(new Date().toISOString().split('T')[0])).length.toString(), icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50', page: 'activity-log' as Page, filter: { date: 'today' } },
-    { label: 'Open Clarifications', value: relevantActivities.filter(a => a.tag === 'Clarification Required').length.toString(), icon: MessageSquare, color: 'text-amber-600', bg: 'bg-amber-50', page: 'activity-log' as Page, filter: { tag: 'Clarification Required' } },
-    { label: 'Exceptions', value: relevantActivities.filter(a => a.tag === 'Exception').length.toString(), icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50', page: 'activity-log' as Page, filter: { tag: 'Exception' } },
-    { label: 'Pending Client', value: relevantActivities.filter(a => a.status === 'Pending').length.toString(), icon: Clock, color: 'text-indigo-600', bg: 'bg-indigo-50', page: 'activity-log' as Page, filter: { status: 'Pending' } },
-    { label: 'Scope Completion', value: '78%', icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', page: 'scope-sla' as Page },
+    { label: 'Open Work', value: relevantWorkItems.filter(w => w.status !== 'Completed' && w.status !== 'Closed').length.toString(), icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50', page: 'work-items' as Page },
+    { label: 'Awaiting Information', value: relevantWorkItems.filter(w => w.status === 'Awaiting Information').length.toString(), icon: MessageSquare, color: 'text-amber-600', bg: 'bg-amber-50', page: 'work-items' as Page },
+    { label: 'Blocked Work', value: relevantWorkItems.filter(w => w.status === 'Blocked').length.toString(), icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50', page: 'work-items' as Page },
+    { label: 'Pending Client', value: relevantWorkItems.filter(w => w.status === 'Awaiting Client').length.toString(), icon: Clock, color: 'text-indigo-600', bg: 'bg-indigo-50', page: 'work-items' as Page },
+    { label: 'Awaiting Approval', value: relevantWorkItems.filter(w => w.status === 'Awaiting Approval').length.toString(), icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', page: 'work-items' as Page },
   ];
 
   const chartData = [
@@ -1118,21 +1175,32 @@ const DashboardPage = ({ onActivityClick, currentUser, tasks, onNavigate, activi
   const filteredActivities = relevantActivities.slice(0, 10);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">
-            {isClient ? `Welcome, ${currentUser.name}` : 'Operational Overview'}
+            {isClient ? `My Dashboard` : 'My Workspace'}
           </h1>
-          {isClient && <p className="text-sm text-zinc-500">TechFlow Solutions • Client Dashboard</p>}
+          <p className="text-sm text-zinc-500">
+            {isClient ? 'Transparency and deliverable tracking' : 'Operational home page'}
+          </p>
         </div>
-        <div className="text-sm text-zinc-500">Last updated: {format(new Date(), 'MMM dd, HH:mm')}</div>
+        {!isClient && (
+          <div className="flex gap-2">
+            <select className="px-3 py-1.5 bg-white border border-zinc-200 rounded-lg text-sm text-zinc-700">
+              <option>Today</option>
+              <option>This Week</option>
+              <option>This Month</option>
+              <option>Quarter</option>
+            </select>
+          </div>
+        )}
       </div>
 
-      <div className={cn("grid gap-4", isClient ? "grid-cols-1 md:grid-cols-4" : "grid-cols-1 md:grid-cols-5")}>
+      <div className={cn("grid gap-4", isClient ? "grid-cols-1 md:grid-cols-4" : "grid-cols-2 md:grid-cols-5")}>
         {stats.map((stat) => (
           <div key={stat.label} onClick={() => onNavigate(stat.page, stat.filter)} className="cursor-pointer group transition-transform hover:scale-[1.02]">
-            <Card className="p-0 overflow-hidden border-zinc-200 group-hover:border-zinc-300 group-hover:shadow-md transition-all">
+            <Card className="p-0 overflow-hidden border-zinc-200 group-hover:border-zinc-300 group-hover:shadow-md transition-all h-full">
               <div className="p-5 flex flex-col gap-3">
                 <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center transition-colors", stat.bg)}>
                   <stat.icon className={stat.color} size={20} />
@@ -1150,12 +1218,44 @@ const DashboardPage = ({ onActivityClick, currentUser, tasks, onNavigate, activi
         ))}
       </div>
 
+      {!isClient && (
+         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card className="bg-emerald-50 border-emerald-100 p-4">
+               <h3 className="text-xs font-bold text-emerald-800 mb-1">Capacity Utilization</h3>
+               <p className="text-2xl font-bold text-emerald-900">84%</p>
+               <div className="w-full h-1 bg-emerald-200 mt-2 rounded">
+                  <div className="w-[84%] bg-emerald-600 h-1 rounded" />
+               </div>
+            </Card>
+            <Card className="bg-blue-50 border-blue-100 p-4">
+               <h3 className="text-xs font-bold text-blue-800 mb-1">Client Health Index</h3>
+               <p className="text-2xl font-bold text-blue-900">9.2/10</p>
+               <div className="w-full h-1 bg-blue-200 mt-2 rounded">
+                  <div className="w-[92%] bg-blue-600 h-1 rounded" />
+               </div>
+            </Card>
+            <Card className="bg-amber-50 border-amber-100 p-4">
+               <h3 className="text-xs font-bold text-amber-800 mb-1">Gross Margin (Estimated)</h3>
+               <p className="text-2xl font-bold text-amber-900">42%</p>
+               <div className="w-full h-1 bg-amber-200 mt-2 rounded">
+                  <div className="w-[42%] bg-amber-500 h-1 rounded" />
+               </div>
+            </Card>
+            <Card className="bg-indigo-50 border-indigo-100 p-4">
+               <h3 className="text-xs font-bold text-indigo-800 mb-1">Revenue Realized</h3>
+               <p className="text-2xl font-bold text-indigo-900">$1.2M <span className="text-xs font-normal opacity-70">of $1.25M</span></p>
+               <div className="w-full h-1 bg-indigo-200 mt-2 rounded">
+                  <div className="w-[96%] bg-indigo-600 h-1 rounded" />
+               </div>
+            </Card>
+         </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <Card title={isClient ? "SLA Performance" : "Activity Trend"}>
+          <Card title={isClient ? "SLA Performance" : "Volume Trend & SLA Compliance"}>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                {isClient ? (
                   <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="colorSla" x1="0" y1="0" x2="0" y2="1">
@@ -1169,167 +1269,116 @@ const DashboardPage = ({ onActivityClick, currentUser, tasks, onNavigate, activi
                     <Tooltip />
                     <Area type="monotone" dataKey="sla" stroke="#10b981" fillOpacity={1} fill="url(#colorSla)" />
                   </AreaChart>
-                ) : (
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                      cursor={{ fill: '#f8fafc' }}
-                    />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-                    <Bar dataKey="emails" stackId="a" fill="#10b981" name="Emails" />
-                    <Bar dataKey="docs" stackId="a" fill="#3b82f6" name="Docs" />
-                    <Bar dataKey="recs" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Recs" />
-                  </BarChart>
-                )}
               </ResponsiveContainer>
             </div>
-            {!isClient && (
-              <div className="mt-4 flex gap-6 px-2">
-                {[
-                  { label: 'Emails', value: chartData.reduce((acc, curr) => acc + curr.emails, 0), color: 'bg-emerald-500' },
-                  { label: 'Docs', value: chartData.reduce((acc, curr) => acc + curr.docs, 0), color: 'bg-blue-500' },
-                  { label: 'Recs', value: chartData.reduce((acc, curr) => acc + curr.recs, 0), color: 'bg-amber-500' },
-                ].map(item => (
-                  <div key={item.label} className="flex items-center gap-2">
-                    <div className={cn("w-2 h-2 rounded-full", item.color)} />
-                    <span className="text-xs font-medium text-zinc-600">{item.value} {item.label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </Card>
 
-          <Card title="Process Breakdown">
-            <div className="h-[300px] flex flex-col items-center justify-center">
-              <ResponsiveContainer width="100%" height="220">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="grid grid-cols-2 gap-4 mt-4 w-full px-4">
-                {pieData.map((item, i) => (
-                  <div key={item.name} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i] }} />
-                    <span className="text-xs text-zinc-600">{item.name} ({item.value}%)</span>
-                  </div>
-                ))}
+          {!isClient ? (
+            <Card title="Workload Distribution">
+              <div className="h-[250px] flex flex-col items-center justify-center">
+                <ResponsiveContainer width="100%" height="200">
+                  <PieChart>
+                    <Pie data={pieData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="grid grid-cols-4 gap-2 mt-2 w-full px-4">
+                  {pieData.map((item, i) => (
+                    <div key={item.name} className="flex items-center gap-1 justify-center">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i] }} />
+                      <span className="text-[10px] text-zinc-600">{item.name} {item.value}%</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          ) : (
+            <Card title="Deliverable Progress">
+              <div className="space-y-4">
+                 {[
+                   { name: 'Month End Reporting', progress: 80, status: 'In Progress' },
+                   { name: 'Payroll Run - Bi-weekly', progress: 100, status: 'Completed' },
+                   { name: 'AP Aging Review', progress: 45, status: 'Blocked by You' }
+                 ].map(item => (
+                   <div key={item.name} className="space-y-2">
+                     <div className="flex justify-between items-center text-sm">
+                       <span className="font-medium text-zinc-800">{item.name}</span>
+                       <span className="text-xs text-zinc-500">{item.status} ({item.progress}%)</span>
+                     </div>
+                     <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                       <div className={`h-full rounded-full ${item.progress === 100 ? 'bg-emerald-500' : item.status.includes('Blocked') ? 'bg-rose-500' : 'bg-blue-500'}`} style={{ width: `${item.progress}%` }} />
+                     </div>
+                   </div>
+                 ))}
+              </div>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-6">
-          <ResourceAvailabilityWidget 
-            currentUser={currentUser} 
-            onStatusChange={onStatusChange} 
-            users={users} 
-            isPresentationMode={isPresentationMode}
-            selectedClientContext={selectedClientContext}
-          />
-          
-          <Card title="Recent Activities">
-            <div className="space-y-4">
-              {filteredActivities.slice(0, 5).map((act) => (
-                <div 
-                  key={act.id} 
-                  onClick={() => onActivityClick(act)}
-                  className="flex items-start gap-3 p-2 hover:bg-zinc-50 rounded-lg transition-colors cursor-pointer group"
-                >
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                    act.tag === 'Exception' ? "bg-rose-50 text-rose-600" : "bg-zinc-50 text-zinc-600"
-                  )}>
-                    <FileText size={14} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-zinc-900 truncate group-hover:text-emerald-600 transition-colors">
-                      {act.reportingMode === 'Compound Reporting' ? act.batchName : act.documentReference}
-                    </p>
-                    <p className="text-[10px] text-zinc-500 truncate">{act.actionTaken}</p>
-                  </div>
-                  <div className="text-[10px] text-zinc-400 font-medium">{format(new Date(act.timestamp), 'HH:mm')}</div>
-                </div>
-              ))}
-            </div>
-            <button 
-              onClick={() => onNavigate('activity-log')}
-              className="w-full mt-4 py-2 text-xs font-bold text-zinc-400 hover:text-zinc-900 transition-colors uppercase tracking-widest"
-            >
-              View Activity Log
-            </button>
-          </Card>
+          {!isClient && (
+            <ResourceAvailabilityWidget 
+              currentUser={currentUser} 
+              onStatusChange={onStatusChange} 
+              users={users} 
+              isPresentationMode={isPresentationMode}
+              selectedClientContext={selectedClientContext}
+            />
+          )}
 
-          <Card title="AI Operations Copilot" className="bg-gradient-to-br from-indigo-50 to-white border-indigo-100">
+          <Card title={isClient ? "Clarifications & Pending Actions" : "Attention Required"}>
             <div className="space-y-4">
-              <div className="flex gap-3 items-start p-3 bg-white border border-indigo-50 rounded-xl shadow-sm">
-                <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0"><Zap size={12} /></div>
-                <div>
-                  <p className="text-xs font-bold text-zinc-900">Bottleneck Detected</p>
-                  <p className="text-[10px] text-zinc-600 mt-1 mt-0.5">AP processing for Globex Corp is running 2 hours behind baseline. Suggested action: Route 2 analysts to coverage.</p>
-                </div>
-              </div>
-              <div className="flex gap-3 items-start p-3 bg-white border border-indigo-50 rounded-xl shadow-sm">
-                <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0"><CheckCircle2 size={12} /></div>
-                <div>
-                  <p className="text-xs font-bold text-zinc-900">Workflow Optimization</p>
-                  <p className="text-[10px] text-zinc-600 mt-1 mt-0.5">3 delayed tasks can be resolved simultaneously by triggering the 'Missing Receipt' automated communication flow.</p>
-                </div>
-              </div>
+               {!isClient ? (
+                 <>
+                   <div className="flex items-center justify-between p-3 border border-rose-100 bg-rose-50 rounded-xl">
+                      <div className="flex items-center gap-3">
+                         <div className="w-8 h-8 rounded bg-white text-rose-600 flex items-center justify-center shrink-0"><AlertTriangle size={14}/></div>
+                         <div>
+                            <p className="text-xs font-bold text-rose-900">3 SLAs At Risk</p>
+                            <p className="text-[10px] text-rose-600">Items breach in &lt; 2 hrs</p>
+                         </div>
+                      </div>
+                      <button className="text-[10px] font-bold text-rose-700 bg-rose-100 px-2 py-1 rounded">View</button>
+                   </div>
+                   <div className="flex items-center justify-between p-3 border border-amber-100 bg-amber-50 rounded-xl">
+                      <div className="flex items-center gap-3">
+                         <div className="w-8 h-8 rounded bg-white text-amber-600 flex items-center justify-center shrink-0"><Clock size={14}/></div>
+                         <div>
+                            <p className="text-xs font-bold text-amber-900">12 Pending Approvals</p>
+                            <p className="text-[10px] text-amber-600">Awaiting management sign-off</p>
+                         </div>
+                      </div>
+                      <button className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded">View</button>
+                   </div>
+                 </>
+               ) : (
+                 <>
+                   {filteredActivities.filter(a => a.tag === 'Clarification Required').slice(0, 3).map(act => (
+                      <div key={act.id} className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-between cursor-pointer group" onClick={() => onActivityClick(act)}>
+                         <div className="flex items-center gap-3">
+                            <MessageSquare size={16} className="text-amber-500" />
+                            <div>
+                               <p className="text-xs font-bold text-amber-900">{act.documentReference}</p>
+                               <p className="text-[10px] text-amber-700">Needs your input</p>
+                            </div>
+                         </div>
+                      </div>
+                   ))}
+                 </>
+               )}
             </div>
-          </Card>
-
-          <Card title="Task Engine Status">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-xs font-bold text-zinc-900 uppercase tracking-tight">Active Engine</span>
-                </div>
-                <span className="text-[10px] font-bold text-zinc-400">v2.4.1</span>
-              </div>
-              
-              <div className="space-y-3">
-                {tasks.filter(t => t.status !== 'Completed').slice(0, 5).map(task => (
-                  <div 
-                    key={task.id} 
-                    onClick={() => onNavigate('task-detail', { taskId: task.id })}
-                    className="p-3 bg-zinc-50 border border-zinc-100 rounded-xl hover:border-emerald-200 transition-colors group cursor-pointer"
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="text-xs font-bold text-zinc-900 line-clamp-1">{task.taskName}</span>
-                      <Badge variant={task.priority === 'Critical' ? 'error' : task.priority === 'High' ? 'warning' : 'info'}>
-                        {task.priority}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-zinc-500">{task.processType} • {USERS.find(u => u.id === task.assignedTo)?.name}</span>
-                      <span className="text-[10px] font-medium text-zinc-400">{format(new Date(task.dueDate), 'MMM dd')}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              <button 
-                onClick={() => onNavigate('tasks')}
-                className="w-full py-2 text-xs font-bold text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-100"
-              >
-                View All Tasks
-              </button>
-            </div>
+            {!isClient && (
+               <button 
+                 onClick={() => onNavigate('escalations')}
+                 className="w-full mt-4 py-2 text-xs font-bold text-zinc-500 hover:text-zinc-900 transition-colors uppercase tracking-widest text-center"
+               >
+                 Go to Action Center
+               </button>
+            )}
           </Card>
         </div>
       </div>
@@ -1442,6 +1491,7 @@ const WorkflowCreationModal = ({ isOpen, onClose, onCreate }: { isOpen: boolean,
   const handleCreate = () => {
     onCreate({
       id: `wf-${Date.now()}`,
+      clientId: 'global',
       name,
       triggerEvent,
       notificationTrigger,
@@ -1582,6 +1632,80 @@ const WorkflowCreationModal = ({ isOpen, onClose, onCreate }: { isOpen: boolean,
           </button>
         </div>
       </motion.div>
+    </div>
+  );
+};
+
+const ActionCenterPage = ({ workItems, onSelectWorkItem }: { workItems: any[], onSelectWorkItem: (id: string) => void }) => {
+  const actionableItems = workItems.filter(wi => wi.priority === 'Critical' || wi.status === 'Blocked' || wi.tags?.includes('Escalation'));
+  
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-900">Action Center</h1>
+          <p className="text-zinc-500">Critical items, blockages, and active escalations requiring immediate attention.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+         <div className="bg-white p-4 rounded-xl shadow-sm border border-rose-100 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">Critical Priority</p>
+              <h2 className="text-2xl font-bold text-rose-600">{actionableItems.filter(i => i.priority === 'Critical').length}</h2>
+            </div>
+            <AlertTriangle className="text-rose-200" size={32} />
+         </div>
+         <div className="bg-white p-4 rounded-xl shadow-sm border border-amber-100 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-500">Blocked Items</p>
+              <h2 className="text-2xl font-bold text-amber-600">{actionableItems.filter(i => i.status === 'Blocked').length}</h2>
+            </div>
+            <AlertTriangle className="text-amber-200" size={32} />
+         </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-zinc-200 overflow-hidden">
+        <table className="w-full text-sm text-left">
+          <thead className="text-xs text-zinc-500 uppercase bg-zinc-50 border-b border-zinc-200">
+            <tr>
+              <th className="px-6 py-4 font-semibold">Priority</th>
+              <th className="px-6 py-4 font-semibold">Item & Type</th>
+              <th className="px-6 py-4 font-semibold">Status</th>
+              <th className="px-6 py-4 font-semibold">Client</th>
+              <th className="px-6 py-4 font-semibold">Assigned</th>
+              <th className="px-6 py-4 font-semibold text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100">
+            {actionableItems.slice(0, 50).map(item => (
+              <tr key={item.id} className="hover:bg-zinc-50 transition-colors group cursor-pointer" onClick={() => onSelectWorkItem(item.id)}>
+                <td className="px-6 py-4">
+                   <span className={`px-2 py-1 text-[10px] uppercase font-bold tracking-wider rounded ${item.priority === 'Critical' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                     {item.priority}
+                   </span>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="font-semibold text-zinc-900">{item.title}</div>
+                  <div className="text-xs text-zinc-500 font-mono mt-0.5">{item.id} · {item.workItemType}</div>
+                </td>
+                <td className="px-6 py-4">
+                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                    item.status === 'Blocked' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700'
+                  }`}>
+                    {item.status}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-zinc-600">{CLIENTS.find(c => c.id === item.clientId)?.name}</td>
+                <td className="px-6 py-4 text-zinc-600">{USERS.find(u => u.id === item.primaryOwner)?.name || 'Unassigned'}</td>
+                <td className="px-6 py-4 text-right">
+                  <button className="text-blue-600 hover:text-blue-700 font-semibold text-xs bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">Resolve</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
@@ -1785,158 +1909,114 @@ const SLACenterPage = ({ onActivityClick, onRoute, initialFilter, assignedClient
   );
 };
 
-const OperationsControlPage = () => {
-  const activeUsers = USERS.filter(u => u.status === 'Active').length;
-  const [selectedMetric, setSelectedMetric] = useState('Throughput');
-
-  const metrics = [
-    { label: 'Active Users', value: activeUsers, icon: Users, color: 'text-blue-600', trend: '+4' },
-    { label: 'System Health', value: '99.9%', icon: ActivityIcon, color: 'text-emerald-600', trend: 'Stable' },
-    { label: 'Active Alerts', value: '12', icon: AlertTriangle, color: 'text-rose-600', trend: '-2' },
-    { label: 'Daily Throughput', value: '1,420', icon: Zap, color: 'text-amber-600', trend: '+15%' },
+const AdminConsolePage = ({ onNavigate }: { onNavigate: (page: Page, filter?: any) => void }) => {
+  const sections = [
+    { title: 'Configuration', items: [
+      { name: 'Services', id: 'service-catalog' as Page },
+      { name: 'Process Templates', id: 'templates' as Page },
+      { name: 'Workflow Templates', id: 'automation-engine' as Page },
+      { name: 'Automation Rules', id: 'automation-engine' as Page },
+      { name: 'Commitment Templates', id: 'commitments' as Page },
+      { name: 'Status Libraries', id: 'admin-settings' as Page, filter: 'status' },
+      { name: 'Priority Libraries', id: 'admin-settings' as Page, filter: 'priority' },
+      { name: 'Approval Templates', id: 'settings' as Page },
+      { name: 'Escalation Rules', id: 'escalations' as Page },
+      { name: 'Notification Templates', id: 'admin-settings' as Page, filter: 'notifications' },
+      { name: 'Enterprise Orchestration', id: 'orchestration' as Page },
+      { name: 'E2E Testing', id: 'test-environment' as Page }
+    ]},
+    { title: 'Security', items: [
+      { name: 'Users', id: 'user-monitor' as Page },
+      { name: 'Roles', id: 'admin-settings' as Page, filter: 'roles' },
+      { name: 'Permissions', id: 'admin-settings' as Page, filter: 'roles' },
+      { name: 'Client Access Rules', id: 'settings' as Page },
+      { name: 'Shadow User Mapping', id: 'settings' as Page },
+      { name: 'Role Visibility Rules', id: 'admin-settings' as Page, filter: 'roles' }
+    ]},
+    { title: 'Platform', items: [
+      { name: 'System Settings', id: 'settings' as Page },
+      { name: 'Calendar Settings', id: 'settings' as Page },
+      { name: 'Business Units', id: 'admin-settings' as Page, filter: 'business-units' },
+      { name: 'Client Configuration', id: 'admin-settings' as Page, filter: 'client-config' },
+      { name: 'Integration Settings', id: 'settings' as Page },
+      { name: 'Audit Logs', id: 'audit-viewer' as Page }
+    ]}
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Operations Control Center</h1>
-          <p className="text-zinc-500 text-sm">Global administrative view of platform health and throughput</p>
+          <h1 className="text-2xl font-bold text-zinc-900">Admin Console</h1>
+          <p className="text-zinc-500 text-sm">Centralized configuration layer for platform structures and governance.</p>
         </div>
         <div className="flex gap-2">
-          <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-            <span className="text-xs font-bold uppercase tracking-wider">System Live</span>
-          </div>
-          <button className="px-4 py-2 bg-white border border-zinc-200 rounded-lg text-sm font-medium hover:bg-zinc-50 transition-colors">Platform Settings</button>
+          <button className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors">Apply Global Settings</button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {metrics.map((m) => (
-          <Card key={m.label} className="p-5">
-            <div className="flex justify-between items-start mb-2">
-              <div className={cn("p-2 rounded-lg bg-zinc-50", m.color)}>
-                <m.icon size={20} />
-              </div>
-              <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", 
-                m.trend.includes('+') ? "bg-emerald-50 text-emerald-600" : 
-                m.trend.includes('-') ? "bg-rose-50 text-rose-600" : "bg-zinc-50 text-zinc-600"
-              )}>
-                {m.trend}
-              </span>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {sections.map(section => (
+          <div key={section.title} className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
+            <div className="bg-zinc-50 px-5 py-4 border-b border-zinc-200">
+              <h3 className="font-bold text-zinc-800 text-sm">{section.title}</h3>
             </div>
-            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">{m.label}</p>
-            <p className="text-2xl font-bold text-zinc-900">{m.value}</p>
-          </Card>
+            <div className="divide-y divide-zinc-100">
+              {section.items.map(item => (
+                <div key={item.name} onClick={() => onNavigate(item.id, (item as any).filter)} className="px-5 py-3 flex items-center justify-between hover:bg-zinc-50 transition-colors cursor-pointer group">
+                  <span className="text-sm font-medium text-zinc-700 group-hover:text-emerald-700 transition-colors">{item.name}</span>
+                  <ChevronRight size={16} className="text-zinc-300 group-hover:text-emerald-500 transition-colors" />
+                </div>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
+      
+      <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm mt-6">
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card title="Global Performance (24h)" className="lg:col-span-2">
-          <div className="flex gap-4 mb-6">
-            {['Throughput', 'Latency', 'Error Rate'].map(m => (
-              <button 
-                key={m}
-                onClick={() => setSelectedMetric(m)}
-                className={cn(
-                  "px-4 py-2 rounded-lg text-xs font-bold transition-all",
-                  selectedMetric === m ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
-                )}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={[
-                { time: '00:00', val: 20 },
-                { time: '04:00', val: 15 },
-                { time: '08:00', val: 45 },
-                { time: '12:00', val: 120 },
-                { time: '16:00', val: 140 },
-                { time: '20:00', val: 80 },
-                { time: '23:59', val: 30 },
-              ]}>
-                <defs>
-                  <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                <Tooltip />
-                <Area type="monotone" dataKey="val" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorVal)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        <Card title="Client Throughput Breakdown">
-          <div className="space-y-6">
-            {CLIENTS.slice(0, 5).map(client => {
-              const val = Math.floor(Math.random() * 80) + 20;
-              return (
-                <div key={client.id} className="space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-zinc-700">{client.name}</span>
-                    <span className="text-zinc-500">{val} items/hr</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${val}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card title="System Alerts & Health" className="p-0">
-          <div className="divide-y divide-zinc-100">
-            {[
-              { type: 'Critical', msg: 'ERP Sync failure for Client A', time: '2m ago', icon: AlertCircle, color: 'text-rose-600' },
-              { type: 'Warning', msg: 'High latency detected in AP module', time: '15m ago', icon: AlertTriangle, color: 'text-amber-600' },
-              { type: 'Info', msg: 'System maintenance scheduled for Sunday', time: '1h ago', icon: Info, color: 'text-blue-600' },
-            ].map((alert, i) => (
-              <div key={i} className="p-4 flex items-start gap-4 hover:bg-zinc-50 transition-colors">
-                <div className={cn("mt-0.5", alert.color)}>
-                  <alert.icon size={18} />
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className={cn("text-[10px] font-bold uppercase", alert.color)}>{alert.type}</span>
-                    <span className="text-[10px] text-zinc-400">{alert.time}</span>
-                  </div>
-                  <p className="text-sm text-zinc-700">{alert.msg}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card title="Recent Administrative Actions" className="p-0">
-          <div className="divide-y divide-zinc-100">
-            {ACTIVITIES.filter(a => a.tag === 'System' || a.tag === 'Admin').slice(0, 5).map(act => (
-              <div key={act.id} className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-bold text-zinc-900">{act.actionTaken}</p>
-                  <p className="text-[10px] text-zinc-500">
-                    {USERS.find(u => u.id === act.userId)?.name} • {format(new Date(act.timestamp), 'MMM dd, HH:mm')}
-                  </p>
-                </div>
-                <Badge variant="default">{act.tag}</Badge>
-              </div>
-            ))}
-            {ACTIVITIES.filter(a => a.tag === 'System' || a.tag === 'Admin').length === 0 && (
-              <div className="p-8 text-center text-zinc-500 text-sm italic">No administrative actions recorded.</div>
-            )}
-          </div>
-        </Card>
+         <div className="px-6 py-5 border-b border-zinc-200">
+            <h3 className="font-bold text-zinc-900">Platform Health & Telemetry</h3>
+            <p className="text-zinc-500 text-sm mt-1">Real-time resource utilization</p>
+         </div>
+         <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="space-y-2">
+               <div className="flex justify-between text-sm">
+                  <span className="text-zinc-500 font-medium">Database Load</span>
+                  <span className="text-zinc-900 font-bold">14%</span>
+               </div>
+               <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                  <div className="w-[14%] h-full bg-emerald-500 rounded-full" />
+               </div>
+            </div>
+            <div className="space-y-2">
+               <div className="flex justify-between text-sm">
+                  <span className="text-zinc-500 font-medium">Automation Queue</span>
+                  <span className="text-rose-600 font-bold">78%</span>
+               </div>
+               <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                  <div className="w-[78%] h-full bg-rose-500 rounded-full" />
+               </div>
+            </div>
+            <div className="space-y-2">
+               <div className="flex justify-between text-sm">
+                  <span className="text-zinc-500 font-medium">API Limits</span>
+                  <span className="text-zinc-900 font-bold">32%</span>
+               </div>
+               <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                  <div className="w-[32%] h-full bg-blue-500 rounded-full" />
+               </div>
+            </div>
+            <div className="space-y-2">
+               <div className="flex justify-between text-sm">
+                  <span className="text-zinc-500 font-medium">Storage Capacity</span>
+                  <span className="text-zinc-900 font-bold">45%</span>
+               </div>
+               <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                  <div className="w-[45%] h-full bg-amber-500 rounded-full" />
+               </div>
+            </div>
+         </div>
       </div>
     </div>
   );
@@ -2051,6 +2131,7 @@ const UserActivityPage = ({ onUserClick, currentUser, selectedClientContext, ass
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('All');
+  const [activeView, setActiveView] = useState<'List' | 'Board'>('List');
   const isAdmin = currentUser.userType === 'Admin';
 
   const getAttendanceStatus = (userId: string) => {
@@ -2085,12 +2166,14 @@ const UserActivityPage = ({ onUserClick, currentUser, selectedClientContext, ass
     return matchesSearch && matchesRole && matchesClient;
   });
 
+  const boardColumns = ['Available', 'Partially Available', 'On Leave', 'Coverage Active'];
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">User Activity Monitor</h1>
-          <p className="text-zinc-500 text-sm">Real-time tracking of internal team productivity and status</p>
+          <h1 className="text-2xl font-bold text-zinc-900">Capacity Planning Engine</h1>
+          <p className="text-zinc-500 text-sm">Resource load balancing and workforce capacity utilization</p>
         </div>
         <div className="flex gap-2">
           {isAdmin && (
@@ -2103,11 +2186,17 @@ const UserActivityPage = ({ onUserClick, currentUser, selectedClientContext, ass
             </button>
           )}
           <button className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg text-sm font-medium transition-colors">
-            Export Productivity Report
+            Export Capacity Forecast
           </button>
         </div>
       </div>
 
+      <div className="bg-white border border-zinc-200 rounded-xl flex overflow-hidden w-max">
+         <button onClick={() => setActiveView('List')} className={cn("px-6 py-2 text-sm font-bold transition-colors", activeView === 'List' ? 'bg-zinc-100 text-zinc-900' : 'bg-transparent text-zinc-500 hover:bg-zinc-50')}>Resource List</button>
+         <button onClick={() => setActiveView('Board')} className={cn("px-6 py-2 text-sm font-bold transition-colors", activeView === 'Board' ? 'bg-zinc-100 text-zinc-900' : 'bg-transparent text-zinc-500 hover:bg-zinc-50')}>Planning Board</button>
+      </div>
+
+      {activeView === 'List' && (
       <div className="flex gap-4 items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
@@ -2134,7 +2223,9 @@ const UserActivityPage = ({ onUserClick, currentUser, selectedClientContext, ass
           <option value="Admin">Admin</option>
         </select>
       </div>
+      )}
 
+      {activeView === 'List' ? (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {filteredUsers.map((user) => {
           const attendance = getAttendanceStatus(user.id);
@@ -2241,6 +2332,44 @@ const UserActivityPage = ({ onUserClick, currentUser, selectedClientContext, ass
           );
         })}
       </div>
+      ) : (
+      <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100vh-280px)]">
+         {boardColumns.map(col => {
+           const colUsers = filteredUsers.filter(u => getAttendanceStatus(u.id)?.status === col || (col === 'Available' && !getAttendanceStatus(u.id)));
+           return (
+             <div key={col} className="w-80 shrink-0 flex flex-col bg-slate-50/50 rounded-2xl border border-zinc-200 h-full overflow-hidden">
+                <div className="p-4 border-b border-zinc-200 bg-white flex justify-between items-center shrink-0">
+                   <h3 className="text-xs font-bold text-zinc-800 uppercase tracking-wider">{col}</h3>
+                   <span className="w-6 h-6 rounded-full bg-zinc-100 flex items-center justify-center text-[10px] font-bold text-zinc-500">{colUsers.length}</span>
+                </div>
+                <div className="p-3 overflow-y-auto flex-1 space-y-3">
+                   {colUsers.map(user => (
+                      <div key={user.id} className="bg-white p-3 rounded-xl shadow-sm border border-zinc-200 flex flex-col gap-2 cursor-grab active:cursor-grabbing hover:border-emerald-200 transition-colors">
+                         <div className="flex justify-between items-start">
+                            <h4 className="text-sm font-bold text-zinc-900">{user.name}</h4>
+                            <div className={`w-2 h-2 rounded-full ${getStatusColor(col as AttendanceStatus)}`} />
+                         </div>
+                         <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">{user.role}</p>
+                         <div className="flex -space-x-1 mt-1">
+                            {user.assignedClientIds?.slice(0, 4).map(clientId => (
+                               <div key={clientId} className="w-5 h-5 rounded-full border-2 border-white bg-zinc-100 flex items-center justify-center text-[8px] font-bold text-zinc-500">
+                                  {CLIENTS.find(c => c.id === clientId)?.name.charAt(0)}
+                               </div>
+                            ))}
+                         </div>
+                      </div>
+                   ))}
+                   {colUsers.length === 0 && (
+                      <div className="p-4 text-center border-2 border-dashed border-zinc-200 rounded-xl text-xs font-bold text-zinc-400">
+                         No resources
+                      </div>
+                   )}
+                </div>
+             </div>
+           );
+         })}
+      </div>
+      )}
 
       <AnimatePresence>
         {isAddUserModalOpen && (
@@ -2305,151 +2434,98 @@ const UserActivityPage = ({ onUserClick, currentUser, selectedClientContext, ass
   );
 };
 
-const WorkflowBuilderPage = ({ workflows, onCreateClick }: { workflows: Workflow[], onCreateClick: () => void }) => {
+const AutomationEnginePage = ({ workflows, onCreateClick }: { workflows: Workflow[], onCreateClick: () => void }) => {
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
 
+  const automations = [
+    { id: 'auto-1', title: 'Critical Issue Escalation', trigger: 'Priority Changes to Critical', condition: 'Type is Issue', action: 'Create Escalation & Notify Manager', active: true },
+    { id: 'auto-2', title: 'Vendor Discrepancy Flow', trigger: 'Work Item Status Blocked', condition: 'Client is Accounting Services', action: 'Request Vendor Approval', active: true },
+    { id: 'auto-3', title: 'Monthly Billing Generator', trigger: 'Recurring Schedule Reached', condition: 'Service is Billing', action: 'Generate 12 Work Items', active: true }
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Workflow Engine</h1>
-          <p className="text-zinc-500 text-sm">Configure multi-level approvals and automated triggers</p>
+          <h1 className="text-2xl font-bold text-zinc-900">Automation Engine</h1>
+          <p className="text-zinc-500 text-sm">Configure no-code automation rules, triggers, and actions.</p>
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 text-zinc-700 rounded-lg text-sm font-medium hover:bg-zinc-50 transition-colors">
-            <History size={16} />
-            Execution History
-          </button>
           <button 
-            onClick={onCreateClick}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
           >
             <Plus size={16} />
-            Create Workflow
+            Create Automation
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {workflows.map((wf) => (
-            <Card 
-              key={wf.id} 
-              title={wf.name}
-              className={cn("transition-all cursor-pointer", selectedWorkflow?.id === wf.id ? "ring-2 ring-emerald-500" : "hover:shadow-md")}
-              onClick={() => setSelectedWorkflow(wf)}
-            >
-              <div className="flex flex-col md:flex-row gap-8">
-                <div className="flex-1 space-y-4">
-                  <div>
-                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Trigger Event</label>
-                    <div className="mt-1 p-3 bg-zinc-50 rounded-lg border border-zinc-100 text-sm font-medium text-zinc-700 flex items-center gap-2">
-                      <Zap size={14} className="text-amber-500" />
-                      {wf.triggerEvent}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Notification</label>
-                    <div className="mt-1 flex items-center gap-2 text-sm text-zinc-600">
-                      <Bell size={14} className="text-emerald-500" />
-                      {wf.notificationTrigger}
-                    </div>
-                  </div>
-                </div>
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex gap-2 mb-2">
+             <button className="px-3 py-1 bg-white border border-zinc-200 text-zinc-700 font-semibold rounded-lg text-sm">All Automations</button>
+             <button className="px-3 py-1 bg-transparent text-zinc-500 font-semibold rounded-lg text-sm">My Automations</button>
+             <button className="px-3 py-1 bg-transparent text-zinc-500 font-semibold rounded-lg text-sm">Templates</button>
+          </div>
 
-                <div className="flex-[2] space-y-4">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Approval Chain</label>
-                  <div className="flex items-center gap-4">
-                    {wf.approvalLevels.map((level, idx) => (
-                      <React.Fragment key={level.level}>
-                        <div className="flex-1 p-4 bg-white border border-zinc-200 rounded-xl shadow-sm relative group">
-                          <div className="absolute -top-2 -left-2 w-6 h-6 bg-zinc-900 text-white rounded-full flex items-center justify-center text-[10px] font-bold">
-                            {level.level}
-                          </div>
-                          <p className="text-xs font-bold text-zinc-900 mb-1">{level.approverRole}</p>
-                          <p className="text-[10px] text-zinc-500">{level.actionType}</p>
-                        </div>
-                        {idx < wf.approvalLevels.length - 1 && (
-                          <ChevronRight className="text-zinc-300" size={20} />
-                        )}
-                      </React.Fragment>
-                    ))}
-                    <div className="flex-1 p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center gap-2">
-                      <CheckCircle2 className="text-emerald-600" size={16} />
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase">Execution</span>
-                    </div>
+          {automations.map((auto) => (
+             <div key={auto.id} className="bg-white p-5 rounded-2xl shadow-sm border border-zinc-100 hover:shadow-md transition">
+               <div className="flex justify-between items-start mb-4">
+                  <h3 className="font-bold text-zinc-800 text-lg">{auto.title}</h3>
+                  <div className={`px-2 py-0.5 text-xs font-bold rounded ${auto.active ? 'bg-emerald-100 text-emerald-700' : 'bg-zinc-100 text-zinc-500'}`}>{auto.active ? 'Active' : 'Inactive'}</div>
+               </div>
+               
+               <div className="flex items-center gap-4 bg-zinc-50 p-4 rounded-xl border border-zinc-100">
+                  <div className="flex-1">
+                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">When (Trigger)</p>
+                     <div className="flex items-center gap-2 text-sm font-semibold text-zinc-700">
+                        <Zap size={14} className="text-amber-500" />
+                        {auto.trigger}
+                     </div>
                   </div>
-                </div>
-              </div>
-              <div className="mt-6 pt-4 border-t border-zinc-100 flex justify-between items-center">
-                <div className="flex items-center gap-4">
-                  <span className="text-[10px] font-bold text-zinc-400 uppercase">Last Modified: {format(new Date(), 'MMM dd, yyyy')}</span>
-                  <Badge variant="default">Active</Badge>
-                </div>
-                <div className="flex gap-3">
-                  <button className="px-3 py-1.5 text-xs font-bold text-zinc-500 hover:text-zinc-900 transition-colors">Edit Logic</button>
-                  <button className="px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">Deactivate</button>
-                </div>
-              </div>
-            </Card>
+                  <ChevronRight size={16} className="text-zinc-300" />
+                  <div className="flex-1">
+                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">If (Condition)</p>
+                     <div className="flex items-center gap-2 text-sm font-semibold text-zinc-700">
+                        <Filter size={14} className="text-blue-500" />
+                        {auto.condition}
+                     </div>
+                  </div>
+                  <ChevronRight size={16} className="text-zinc-300" />
+                  <div className="flex-1">
+                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Then (Action)</p>
+                     <div className="flex items-center gap-2 text-sm font-semibold text-zinc-700">
+                        <Play size={14} className="text-emerald-500" />
+                        {auto.action}
+                     </div>
+                  </div>
+               </div>
+               <div className="mt-4 flex justify-end gap-3 border-t border-zinc-100 pt-3">
+                 <button className="text-zinc-500 hover:text-zinc-700 text-xs font-bold">Edit Logic</button>
+                 <button className="text-rose-600 hover:text-rose-700 text-xs font-bold">Deactivate</button>
+               </div>
+             </div>
           ))}
         </div>
 
         <div className="space-y-6">
-          <Card title="Workflow Insights">
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 bg-zinc-50 rounded-xl">
-                  <p className="text-[10px] font-bold text-zinc-400 uppercase">Avg Completion</p>
-                  <p className="text-xl font-bold text-zinc-900">1.4h</p>
-                </div>
-                <div className="p-3 bg-zinc-50 rounded-xl">
-                  <p className="text-[10px] font-bold text-zinc-400 uppercase">Success Rate</p>
-                  <p className="text-xl font-bold text-zinc-900">98.2%</p>
-                </div>
-              </div>
-              
+           <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-100">
+              <h3 className="font-bold text-zinc-800 mb-4 text-md flex items-center gap-2"><ActivityIcon size={16} /> Automation Telemetry</h3>
               <div className="space-y-4">
-                <h4 className="text-xs font-bold text-zinc-900 uppercase tracking-wider">Recent Executions</h4>
-                {[
-                  { name: 'Invoice Approval', status: 'Completed', time: '12m ago' },
-                  { name: 'Credit Note Review', status: 'In Progress', time: '45m ago' },
-                  { name: 'High Value PO', status: 'Awaiting L2', time: '2h ago' },
-                ].map((exec, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 border border-zinc-100 rounded-lg">
-                    <div>
-                      <p className="text-xs font-bold text-zinc-900">{exec.name}</p>
-                      <p className="text-[10px] text-zinc-500">{exec.time}</p>
-                    </div>
-                    <Badge variant={exec.status === 'Completed' ? 'success' : 'warning'}>{exec.status}</Badge>
-                  </div>
-                ))}
+                 <div className="flex justify-between items-center p-3 rounded-xl bg-zinc-50 border border-zinc-100">
+                    <span className="text-sm font-semibold text-zinc-600">Total Run Count (24h)</span>
+                    <span className="font-bold text-zinc-900">4,291</span>
+                 </div>
+                 <div className="flex justify-between items-center p-3 rounded-xl bg-zinc-50 border border-zinc-100">
+                    <span className="text-sm font-semibold text-zinc-600">Failed Executions</span>
+                    <span className="font-bold text-rose-600">3</span>
+                 </div>
+                 <div className="flex justify-between items-center p-3 rounded-xl bg-zinc-50 border border-zinc-100">
+                    <span className="text-sm font-semibold text-zinc-600">Avg Processing Time</span>
+                    <span className="font-bold text-zinc-900">12ms</span>
+                 </div>
               </div>
-            </div>
-          </Card>
-
-          <Card title="Automated Triggers">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Mail size={16} className="text-blue-600" />
-                  <span className="text-xs font-medium text-blue-900">Email to Activity</span>
-                </div>
-                <div className="w-8 h-4 bg-blue-600 rounded-full relative">
-                  <div className="absolute right-1 top-1 w-2 h-2 bg-white rounded-full" />
-                </div>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-zinc-50 border border-zinc-100 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <FileText size={16} className="text-zinc-600" />
-                  <span className="text-xs font-medium text-zinc-900">OCR Validation</span>
-                </div>
-                <div className="w-8 h-4 bg-zinc-300 rounded-full relative">
-                  <div className="absolute left-1 top-1 w-2 h-2 bg-white rounded-full" />
-                </div>
-              </div>
-            </div>
-          </Card>
+           </div>
         </div>
       </div>
     </div>
@@ -2560,7 +2636,7 @@ const ActivityLogPage = ({ activities, onActivityClick, onAddClick, currentUser,
     <div className="space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Activity Log</h1>
+          <h1 className="text-2xl font-bold text-zinc-900">Activity Timeline</h1>
           <p className="text-zinc-500 text-sm">Document-level execution tracking</p>
         </div>
         <div className="flex gap-2">
@@ -3489,19 +3565,25 @@ const TasksPage = ({ tasks, onTaskClick, onActivityClick, initialFilter }: { tas
           <h1 className="text-2xl font-bold text-zinc-900">Task Engine</h1>
           <p className="text-zinc-500 text-sm">Manage work assignments and operational load</p>
         </div>
-        <div className="flex bg-zinc-100 p-1 rounded-lg">
-          {['All', 'Open', 'In Progress', 'Completed', 'Blocked'].map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilter(s as any)}
-              className={cn(
-                "px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all",
-                filter === s ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700"
-              )}
-            >
-              {s}
-            </button>
-          ))}
+        <div className="flex items-center gap-4">
+          <div className="flex bg-zinc-100 p-1 rounded-lg">
+            {['All', 'Open', 'In Progress', 'Completed', 'Blocked'].map((s) => (
+              <button
+                key={s}
+                onClick={() => setFilter(s as any)}
+                className={cn(
+                  "px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all",
+                  filter === s ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+                )}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <button className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors flex items-center gap-2">
+            <Plus size={16} />
+            Create Task
+          </button>
         </div>
       </div>
 
@@ -3651,7 +3733,7 @@ const TaskDetailPage = ({ task, auditLogs, activities, onBack, onActivityClick }
                   </div>
                   <div className="pb-4 flex-1">
                     <p className="text-sm font-bold text-zinc-900">{log.action.replace(/_/g, ' ')}</p>
-                    {log.notes && <p className="text-xs text-zinc-600 mt-0.5">{log.notes}</p>}
+                    {log.newValue && <p className="text-xs text-zinc-600 mt-0.5">{log.oldValue ? `Changed from ${log.oldValue} to ${log.newValue}` : log.newValue}</p>}
                     <p className="text-[10px] text-zinc-400 mt-1 uppercase tracking-wider font-bold">
                       {USERS.find(u => u.id === log.changedBy)?.name || 'System Orchestrator'} • {format(new Date(log.timestamp), 'MMM dd HH:mm')}
                     </p>
@@ -4234,7 +4316,7 @@ const ScopeSLAPage = ({ scopes, onStatusChange, onScopeClick, initialFilter, cur
   );
 };
 
-const ClientsPage = ({ onClientClick, assignedClients }: { onClientClick: (c: Client) => void, assignedClients: Client[] }) => {
+const ClientsPage = ({ onClientClick, onAddClient, assignedClients }: { onClientClick: (c: Client) => void, onAddClient?: () => void, assignedClients: Client[] }) => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-end">
@@ -4242,7 +4324,7 @@ const ClientsPage = ({ onClientClick, assignedClients }: { onClientClick: (c: Cl
           <h1 className="text-2xl font-bold text-zinc-900">Client Directory</h1>
           <p className="text-zinc-500 text-sm">Manage client relationships and assigned teams</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors">
+        <button onClick={onAddClient} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors">
           <Plus size={16} />
           Add Client
         </button>
@@ -4550,6 +4632,25 @@ const RuleDetailPage = ({ rule, auditLogs, decisionLogs, onBack }: {
         </div>
 
         <div className="space-y-6">
+          <Card title="Linked Objects" className="p-0">
+            <div className="divide-y divide-zinc-100">
+              {rule.linkedObjects?.map((obj, i) => (
+                <div key={i} className="px-5 py-3 hover:bg-zinc-50 transition-colors flex items-center justify-between cursor-pointer group">
+                  <div>
+                     <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-zinc-900 group-hover:text-emerald-700 transition-colors">{obj.name}</span>
+                     </div>
+                     <p className="text-[10px] text-zinc-500 uppercase tracking-wider">{obj.type}</p>
+                  </div>
+                  <ChevronRight size={14} className="text-zinc-300 group-hover:text-emerald-500 transition-colors" />
+                </div>
+              ))}
+              {(!rule.linkedObjects || rule.linkedObjects.length === 0) && (
+                <div className="p-6 text-center text-zinc-500 text-xs italic">No linked objects.</div>
+              )}
+            </div>
+          </Card>
+          
           <Card title="Audit Trail" className="p-0">
             <div className="divide-y divide-zinc-100">
               {ruleAuditLogs.map(log => (
@@ -4597,7 +4698,7 @@ const RuleLibraryPage = ({ rules, onRuleClick, initialFilter, currentUser }: {
     <div className="space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Rule Library</h1>
+          <h1 className="text-2xl font-bold text-zinc-900">Knowledge Hub</h1>
           <p className="text-zinc-500 text-sm">Governance and client-specific instructions</p>
         </div>
         {currentUser.role !== 'Client Viewer' && (
@@ -5095,7 +5196,7 @@ const CommunicationsPage = ({ communications, onActivityClick, onCommunicationCl
     <div className="space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Central Communications</h1>
+          <h1 className="text-2xl font-bold text-zinc-900">Collaboration Hub</h1>
           <p className="text-zinc-500 text-sm">All activity-linked communication threads and document clarifications</p>
         </div>
           <div className="flex gap-2">
@@ -5257,7 +5358,7 @@ const ClientSwitcher = ({ isOpen, onClose, assignedClients, onSelect }: { isOpen
 };
 
 export default function App() {
-  const [activePage, setActivePage] = useState<Page>('dashboard');
+  const [activePage, setActivePage] = useState<Page>('my-workspace');
   const [pageFilter, setPageFilter] = useState<any>(null);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -5266,22 +5367,35 @@ export default function App() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedScope, setSelectedScope] = useState<ScopeCommitment | null>(null);
   const [selectedCommunication, setSelectedCommunication] = useState<Communication | null>(null);
+  const [selectedWorkItem, setSelectedWorkItem] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isClientSwitcherOpen, setIsClientSwitcherOpen] = useState(false);
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
   const [isSLARoutingModalOpen, setIsSLARoutingModalOpen] = useState(false);
+  const [isSmartCaptureOpen, setIsSmartCaptureOpen] = useState(false);
+  const [isBulkProcessingOpen, setIsBulkProcessingOpen] = useState(false);
+  const [isClientOnboardingOpen, setIsClientOnboardingOpen] = useState(false);
   const [routingActivity, setRoutingActivity] = useState<Activity | null>(null);
   const [currentUser, setCurrentUser] = useState<User>(USERS[0]); // Default to Admin
   const [selectedClientContext, setSelectedClientContext] = useState<Client | null>(null);
+
+  const [templates, setTemplates] = useState(TEMPLATES);
+  const [engagements, setEngagements] = useState(ENGAGEMENTS);
+  const [scopeItems, setScopeItems] = useState(SCOPE_ITEMS);
+  const [workItems, setWorkItems] = useState(WORK_ITEMS);
+  const [commitments, setCommitments] = useState<any[]>([]);
+  const [services, setServices] = useState(SERVICES);
+  const [clientServices, setClientServices] = useState(CLIENT_SERVICES);
+  const [assignmentHistory, setAssignmentHistory] = useState(ASSIGNMENT_HISTORY);
 
   const [activities, setActivities] = useState(ACTIVITIES);
   const [users, setUsers] = useState(USERS);
   const [scopes, setScopes] = useState(SCOPE_COMMITMENTS);
   const [tasks, setTasks] = useState<Task[]>(TASKS);
   const [workflows, setWorkflows] = useState(WORKFLOWS);
-  const [communications, setCommunications] = useState(COMMUNICATIONS);
+  const [communications, setCommunications] = useState([...COMMUNICATIONS, ...SCENARIO_COMMUNICATIONS]);
   const [rules, setRules] = useState(RULES);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [decisionLogs, setDecisionLogs] = useState<DecisionLog[]>([]);
@@ -5307,7 +5421,13 @@ export default function App() {
       workflows,
       notifications,
       auditLogs,
-      decisionLogs
+      decisionLogs,
+      templates,
+      services,
+      workItems,
+      clientServices,
+      assignmentHistory,
+      commitments: []
     });
   }, []);
 
@@ -5348,6 +5468,78 @@ export default function App() {
   };
 
   const handleSystemEvent = (eventType: string, payload: any) => {
+    if (eventType === 'GLOBAL_SEARCH_SELECT') {
+      handleGlobalSearchSelect(payload.type, payload.id);
+      return;
+    }
+    if (eventType === 'OPEN_SMART_CAPTURE') {
+      setIsSmartCaptureOpen(true);
+      return;
+    }
+    if (eventType === 'OPEN_BULK_PROCESSING') {
+      setIsBulkProcessingOpen(true);
+      return;
+    }
+    if (eventType === 'COMMUNICATION_ADDED') {
+      const comm = payload.communication;
+      setCommunications(prev => [comm, ...prev]);
+      
+      // Communication Driven Automation
+      if (comm.tag === 'Clarification Required') {
+        setWorkItems(prev => [{
+          id: `wi-${Date.now()}-clarifi`,
+          title: `Follow Up: Clarification on ${comm.subject}`,
+          clientId: 'client-1',
+          processId: 'proc-1',
+          status: 'Awaiting Client',
+          priority: 'High',
+          slaTarget: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          assignedTo: currentUser.id,
+          createdAt: new Date().toISOString()
+        }, ...prev]);
+        setNotifications(prev => [{
+          id: `notif-${Date.now()}-clarifi`,
+          userId: currentUser.id,
+          type: 'warning',
+          message: `SLA timer started for Clarification Request on ${comm.subject}. Added to Action Center.`,
+          timestamp: new Date().toISOString(),
+          isRead: false
+        }, ...prev]);
+      } else if (comm.tag === 'Approval Request') {
+        setWorkItems(prev => [{
+          id: `wi-${Date.now()}-apprv`,
+          title: `Approval Required: ${comm.subject}`,
+          clientId: 'client-1',
+          processId: 'proc-1',
+          status: 'Ready',
+          priority: 'Critical',
+          slaTarget: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+          assignedTo: 'user-0', // Admin/Approver
+          createdAt: new Date().toISOString()
+        }, ...prev]);
+        setNotifications(prev => [{
+          id: `notif-${Date.now()}-apprv`,
+          userId: 'user-0',
+          type: 'info',
+          message: `New Approval Request assigned from ${comm.sender}: ${comm.subject}.`,
+          timestamp: new Date().toISOString(),
+          isRead: false
+        }, ...prev]);
+      }
+    }
+    if (eventType === 'WORK_ITEM_CREATED') {
+      setCommunications(prev => [{
+         id: `msg-${Date.now()}-init`,
+         objectType: 'WorkItem',
+         objectId: payload.workItem.id,
+         sender: 'System',
+         message: 'Work item successfully defined and orchestrated.',
+         timestamp: new Date().toISOString(),
+         priority: 'Medium',
+         tag: 'General Communication'
+      }, ...prev]);
+    }
+
     // Enterprise Orchestration Layer handles concurrency, event sourcing, locking, and validation
     const newState = Orchestrator.dispatch({
       type: eventType as any,
@@ -5363,6 +5555,12 @@ export default function App() {
     setNotifications(newState.notifications);
     setAuditLogs(newState.auditLogs);
     setDecisionLogs(newState.decisionLogs);
+    setTemplates(newState.templates || templates);
+    setServices(newState.services || services);
+    setWorkItems(newState.workItems || workItems);
+    setClientServices(newState.clientServices || clientServices);
+    setAssignmentHistory(newState.assignmentHistory || assignmentHistory);
+    setCommitments(newState.commitments || commitments);
   };
 
   // Simulation Mode Logic
@@ -5484,6 +5682,18 @@ export default function App() {
     return workflows.filter(w => w.clientId === selectedClientContext.id);
   }, [workflows, selectedClientContext, isPresentationMode, assignedClients, currentUser.userType]);
 
+  const filteredWorkItems = useMemo(() => {
+    if (isPresentationMode) {
+      if (!selectedClientContext) return [];
+      return workItems.filter(wi => wi.clientId === selectedClientContext.id);
+    }
+    if (!selectedClientContext) {
+      if (currentUser.userType === 'Admin') return workItems;
+      return workItems.filter(wi => assignedClients.some(c => c.id === wi.clientId));
+    }
+    return workItems.filter(wi => wi.clientId === selectedClientContext.id);
+  }, [workItems, selectedClientContext, isPresentationMode, assignedClients, currentUser.userType]);
+
   const filteredCommunications = useMemo(() => {
     if (isPresentationMode) {
       if (!selectedClientContext) return [];
@@ -5566,6 +5776,13 @@ export default function App() {
     } else if (type === 'Rule') {
       const rule = RULES.find(r => r.id === id);
       if (rule) handleRuleClick(rule);
+    } else if (type === 'WorkItem') {
+      setSelectedWorkItem(id);
+      setActivePage('work-items');
+    } else if (type === 'Service') {
+      setActivePage('service-catalog');
+    } else if (type === 'Template') {
+      setActivePage('templates');
     } else if (type === 'Action') {
       if (id === 'create-activity') setIsAddModalOpen(true);
       if (id === 'sla-center') setActivePage('sla-center');
@@ -5703,6 +5920,27 @@ export default function App() {
   };
 
   const handleNavigate = (page: Page, filter?: any) => {
+    // SECURITY HARDENING: Centralized Navigation Authorization Check
+    const allowedPages: Record<string, string[]> = {
+      'Admin': ['dashboard', 'work-items', 'tasks', 'communications', 'settings', 'user-monitor', 'work-execution', 'reports', 'clients', 'client-detail', 'knowledge-base', 'calendar', 'automation-engine', 'audit-viewer', 'ops-control', 'test-environment', 'blueprints', 'rule-library', 'control-tower', 'escalations', 'client-action-center', 'demo', 'operational-reviews', 'commitments', 'admin-settings'],
+      'Internal Manager': ['dashboard', 'work-items', 'tasks', 'communications', 'settings', 'user-monitor', 'work-execution', 'reports', 'workflow', 'team', 'calendar', 'knowledge-base', 'blueprints', 'test-environment', 'operational-reviews', 'control-tower', 'escalations', 'commitments', 'admin-settings'],
+      'Processor': ['my-workspace', 'work-execution', 'calendar', 'knowledge-base', 'work-items', 'tasks', 'communications'],
+      'Analyst': ['my-workspace', 'work-execution', 'calendar', 'knowledge-base', 'work-items', 'tasks', 'communications'],
+      'Shadow User': ['my-workspace', 'work-execution'],
+      'Client Manager': ['client-action-center', 'calendar', 'exceptions', 'approvals'],
+      'Client Viewer': ['client-action-center']
+    };
+
+    const roleAccess = allowedPages[currentUser.role] || [];
+    
+    // Authorization Check
+    if (!roleAccess.includes(page) && page !== 'demo') {
+       handleSystemEvent('UNAUTHORIZED_ACCESS_ATTEMPT', { page, user: currentUser.id, role: currentUser.role });
+       // Force fallback to safe page
+       setActivePage(currentUser.userType === 'Client' ? 'client-action-center' : (currentUser.role === 'Admin' ? 'dashboard' : 'my-workspace'));
+       return;
+    }
+
     setActivePage(page);
     if (filter) setPageFilter(filter);
   };
@@ -5722,6 +5960,18 @@ export default function App() {
           isPresentationMode={isPresentationMode}
           selectedClientContext={selectedClientContext}
           assignedClients={assignedClients}
+          workItems={workItems}
+        />
+      );
+      case 'my-workspace': return (
+        <MyWorkspacePage 
+          currentUser={currentUser}
+          activities={filteredActivities}
+          tasks={filteredTasks}
+          communications={communications}
+          workItems={workItems}
+          onAction={handleSystemEvent}
+          onNavigate={handleNavigate}
         />
       );
       case 'activity-log': return (
@@ -5777,7 +6027,7 @@ export default function App() {
           decisionLogs={decisionLogs.filter(l => l.objectId === selectedRule.id)}
           onBack={() => setActivePage('rule-library')}
         />
-      ) : <RuleLibraryPage onRuleClick={handleRuleClick} initialFilter={pageFilter} />;
+      ) : <RuleLibraryPage rules={filteredRules} onRuleClick={handleRuleClick} initialFilter={pageFilter} currentUser={currentUser} />;
       case 'communications': return <CommunicationsPage communications={filteredCommunications} onActivityClick={handleActivityClick} onCommunicationClick={handleCommunicationClick} currentUser={currentUser} initialFilter={pageFilter} isPresentationMode={isPresentationMode} />;
       case 'communication-detail': return selectedCommunication ? (
         <CommunicationDetailPage 
@@ -5855,25 +6105,39 @@ export default function App() {
         if (act) handleActivityClick(act);
       }} initialFilter={pageFilter} />;
       case 'audit-viewer': return <AuditViewerPage auditLogs={auditLogs} />;
+      case 'admin-settings': return <AdminSettingsPage initialTab={pageFilter} />;
       case 'settings': return <SettingsPage settings={settings} onUpdate={setSettings} currentUser={currentUser} />;
-      case 'clients': return <ClientsPage onClientClick={handleClientClick} assignedClients={assignedClients} />;
-      case 'client-detail': return selectedClient ? <ClientDetailPage client={selectedClient} onBack={() => setActivePage('clients')} currentUser={currentUser} onNavigate={handleNavigate} /> : <ClientsPage onClientClick={handleClientClick} assignedClients={assignedClients} />;
+      case 'client-action-center': return <ClientActionCenterPage workItems={filteredWorkItems} activities={filteredActivities} onNavigate={handleNavigate} />;
+      case 'operational-reviews': return <OperationalReviewPacksPage workItems={filteredWorkItems} activities={filteredActivities} clients={assignedClients} />;
+      case 'commitments': return <CommitmentsProgressPage commitments={commitments} workItems={filteredWorkItems} tasks={filteredTasks} onAction={handleSystemEvent} />;
+      case 'exceptions': return <ExceptionCenterPage workItems={filteredWorkItems} activities={filteredActivities} onNavigate={handleNavigate} />;
+      case 'control-tower': return <DeliveryControlTowerPage engagements={engagements} clients={assignedClients} scopeItems={scopeItems} workItems={filteredWorkItems} users={users} onNavigate={handleNavigate} />;
+      case 'escalations': return <ActionCenterPage workItems={filteredWorkItems} onSelectWorkItem={(id) => { setSelectedWorkItem(id); setActivePage('work-items'); }} />;
+      case 'clients': return <ClientsPage onClientClick={handleClientClick} assignedClients={assignedClients} onAddClient={() => setIsClientOnboardingOpen(true)} />;
+      case 'client-detail': return selectedClient ? <ClientDetailPage client={selectedClient} onBack={() => setActivePage('clients')} currentUser={currentUser} onNavigate={handleNavigate} /> : <ClientsPage onClientClick={handleClientClick} assignedClients={assignedClients} onAddClient={() => setIsClientOnboardingOpen(true)} />;
       case 'demo': return <DemoPage />;
+      case 'test-environment': return <EndToEndTestingPage onAction={handleSystemEvent} />;
       case 'sla-center': return <SLACenterPage onActivityClick={handleActivityClick} onRoute={(act) => { setRoutingActivity(act); setIsSLARoutingModalOpen(true); }} initialFilter={pageFilter} assignedClients={assignedClients} />;
-      case 'ops-control': return <OperationsControlPage />;
+      case 'ops-control': return <AdminConsolePage onNavigate={handleNavigate} />;
       case 'user-monitor': return <UserActivityPage onUserClick={handleUserClick} currentUser={currentUser} selectedClientContext={selectedClientContext} assignedClients={assignedClients} users={users} onUpdateUser={(u) => setUsers(users.map(user => user.id === u.id ? u : user))} />;
       case 'user-detail': return selectedUser ? (
         <UserDetailPage 
           user={selectedUser}
           activities={filteredActivities.filter(a => a.userId === selectedUser.id)}
-          tasks={tasks.filter(t => t.assignedTo === selectedUser.id)}
+          tasks={filteredTasks.filter(t => t.assignedTo === selectedUser.id)}
           auditLogs={auditLogs.filter(l => l.changedBy === selectedUser.id)}
           onBack={() => setActivePage('user-monitor')}
           onActivityClick={handleActivityClick}
         />
       ) : <UserActivityPage onUserClick={handleUserClick} currentUser={currentUser} selectedClientContext={selectedClientContext} assignedClients={assignedClients} users={users} onUpdateUser={(u) => setUsers(users.map(user => user.id === u.id ? u : user))} />;
-      case 'workflow-builder': return <WorkflowBuilderPage workflows={filteredWorkflows} onCreateClick={() => setIsWorkflowModalOpen(true)} />;
-      case 'orchestration': return <OrchestrationTelemetryPage activities={activities} tasks={tasks} auditLogs={auditLogs} workflows={workflows} />;
+      case 'automation-engine': return <AutomationEnginePage workflows={filteredWorkflows} onCreateClick={() => setIsWorkflowModalOpen(true)} />;
+      case 'orchestration': return <OrchestrationTelemetryPage activities={filteredActivities} tasks={filteredTasks} auditLogs={auditLogs} workflows={filteredWorkflows} />;
+      case 'work-items': return selectedWorkItem ? <WorkItemDetail item={filteredWorkItems.find(wi => wi.id === selectedWorkItem)!} onBack={() => setSelectedWorkItem(null)} onAction={handleSystemEvent} communications={filteredCommunications} assignmentHistory={assignmentHistory} currentUser={currentUser} /> : <WorkItemList workItems={filteredWorkItems} onSelect={(id) => { setSelectedWorkItem(id); setActivePage('work-items'); }} onAction={handleSystemEvent} />;
+      case 'service-catalog': return <ServiceCatalogEngine services={services} clientServices={clientServices} onAction={handleSystemEvent} />;
+      case 'blueprints': return <ServiceBlueprintLibraryPage />;
+      case 'templates': return <TemplateEngine templates={templates} services={services} onAction={handleSystemEvent} />;
+      case 'assignments': return <AssignmentEngine workItems={filteredWorkItems} assignmentHistory={assignmentHistory} onAction={handleSystemEvent} />;
+      case 'calendar': return <CalendarModule workItems={filteredWorkItems} onSelectWorkItem={(id) => { setSelectedWorkItem(id); setActivePage('work-items'); }} onAction={handleSystemEvent} />;
       default: return (
         <div className="h-full flex flex-col items-center justify-center text-zinc-400">
           <Settings size={48} strokeWidth={1} className="mb-4" />
@@ -5962,7 +6226,37 @@ export default function App() {
           isOpen={isSearchOpen} 
           onClose={() => setIsSearchOpen(false)} 
           onSelect={handleGlobalSearchSelect}
+          workItems={workItems}
+          services={services}
+          templates={templates}
         />
+
+        <SmartCaptureModal 
+          isOpen={isSmartCaptureOpen} 
+          onClose={() => setIsSmartCaptureOpen(false)} 
+          onAction={handleSystemEvent}
+          rules={rules}
+          activities={activities}
+        />
+
+        <BulkProcessingModal 
+          isOpen={isBulkProcessingOpen} 
+          onClose={() => setIsBulkProcessingOpen(false)} 
+          onAction={handleSystemEvent}
+          clients={assignedClients}
+        />
+
+        {isClientOnboardingOpen && (
+           <ClientOnboardingWizard 
+               users={users} 
+               onCancel={() => setIsClientOnboardingOpen(false)} 
+               onComplete={(data) => {
+                   setIsClientOnboardingOpen(false);
+                   // Mock creating a client
+                   alert(`Client simulated onboarding complete for: ${data.clientName}`);
+               }}
+           />
+        )}
 
         <div className="p-8 max-w-7xl mx-auto">
           <AnimatePresence mode="wait">
